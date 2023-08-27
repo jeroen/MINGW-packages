@@ -17,9 +17,7 @@ makedepends=("${MINGW_PACKAGE_PREFIX}-cc"
              "${MINGW_PACKAGE_PREFIX}-pkgconf"
              "${MINGW_PACKAGE_PREFIX}-python"
              "git")
-depends=("${MINGW_PACKAGE_PREFIX}-abseil-cpp"
-         "${MINGW_PACKAGE_PREFIX}-icu"
-         "${MINGW_PACKAGE_PREFIX}-zlib")
+depends=("${MINGW_PACKAGE_PREFIX}-zlib")
 source=("https://github.com/v8/v8/archive/refs/tags/${pkgver}.tar.gz"
         "bare-clones/build::git+https://chromium.googlesource.com/chromium/src/build.git#commit=a5321f10c92e1cab7ba5ba6f8a4731513db090c5"
         "bare-clones/abseil-cpp::git+https://chromium.googlesource.com/chromium/src/third_party/abseil-cpp.git#commit=583dc6d1b3a0dd44579718699e37cad2f0c41a26"
@@ -143,6 +141,18 @@ prepare() {
   sed -e "s|@VERSION@|${pkgver}|g" \
       -e "s|@CFLAGS@|${_cflags}|g" \
       -e "s|^prefix=.*|prefix=${MINGW_PREFIX}|g" -i "${srcdir}/v8.pc"
+
+  #jeroen: fix constants and flags for older mingw versions
+  sed -e "s|MEM_REPLACE_PLACEHOLDER|0x00004000|g" \
+      -e "s|MEM_RESERVE_PLACEHOLDER|0x00040000|g" \
+      -e "s|MEM_PRESERVE_PLACEHOLDER|0x00000002|g" \
+      -e "s|CREATE_WAITABLE_TIMER_HIGH_RESOLUTION|0x00000002|g" \
+      -e "s|MEM_COALESCE_PLACEHOLDERS|0x00000001|g" \
+      -i src/base/platform/platform-win32.cc
+
+  sed -e "s|#include <windows.globalization.h>||g" \
+      -i third_party/abseil-cpp/absl/time/internal/cctz/src/time_zone_lookup.cc
+
 }
 
 build() {
@@ -170,16 +180,20 @@ build() {
     target_cpu=\"${_arch}\"
     is_debug=${_debug}
     is_clang=${_clang}
-    is_component_build=true
+    v8_monolithic=true
+    v8_static_library=true
+    is_component_build=false
     use_custom_libcxx=false
     use_lld=false
     use_sysroot=false
     v8_enable_verify_heap=false
-    icu_use_data_file=false
+    v8_enable_i18n_support=false
+    v8_enable_sandbox=false
+    v8_use_external_startup_data=false
     enable_iterator_debugging=${_debug}
     treat_warnings_as_errors=false"
 
-  ${MINGW_PREFIX}/bin/ninja -C out/${_buildtype}-${MSYSTEM} v8_libbase v8_libplatform v8 d8 torque torque-language-server mksnapshot
+  ${MINGW_PREFIX}/bin/ninja -C out/${_buildtype}-${MSYSTEM} v8_monolith v8_libbase v8_libplatform v8 d8
 }
 
 package() {
@@ -192,13 +206,7 @@ package() {
 
   install -d ${pkgdir}${MINGW_PREFIX}/{bin,include/{cppgc/internal,libplatform},lib/pkgconfig,share/licenses/${_realname}}
   install -Dm755 out/${_buildtype}-${MSYSTEM}/d8.exe                      ${pkgdir}${MINGW_PREFIX}/bin/d8.exe
-  install -Dm755 out/${_buildtype}-${MSYSTEM}/torque.exe                  ${pkgdir}${MINGW_PREFIX}/bin/torque.exe
-  install -Dm755 out/${_buildtype}-${MSYSTEM}/torque-language-server.exe  ${pkgdir}${MINGW_PREFIX}/bin/torque-language-server.exe
-  install -Dm755 out/${_buildtype}-${MSYSTEM}/mksnapshot.exe              ${pkgdir}${MINGW_PREFIX}/bin/mksnapshot.exe
-  install -Dm755 out/${_buildtype}-${MSYSTEM}/*.dll                       ${pkgdir}${MINGW_PREFIX}/bin/
-  install -Dm644 out/${_buildtype}-${MSYSTEM}/snapshot_blob.bin           ${pkgdir}${MINGW_PREFIX}/bin/snapshot_blob.bin
-  install -Dm755 out/${_buildtype}-${MSYSTEM}/*.a                         ${pkgdir}${MINGW_PREFIX}/lib/
-  install -Dm644 $srcdir/*.pc                                             ${pkgdir}${MINGW_PREFIX}/lib/pkgconfig/
+  install -Dm755 out/${_buildtype}-${MSYSTEM}/obj/libv8_monolith.a        ${pkgdir}${MINGW_PREFIX}/lib/
   install -Dm644 include/*.h                                              ${pkgdir}${MINGW_PREFIX}/include/
   install -Dm644 include/cppgc/*.h                                        ${pkgdir}${MINGW_PREFIX}/include/cppgc/
   install -Dm644 include/cppgc/internal/*.h                               ${pkgdir}${MINGW_PREFIX}/include/cppgc/internal/

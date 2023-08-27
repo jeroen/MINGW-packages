@@ -123,6 +123,14 @@ pacman -Sy
 # Remove git and python
 pacman -R --recursive --unneeded --noconfirm --noprogressbar git python
 
+# Downgrade gcc
+wget -q https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-gcc-12.2.0-9-any.pkg.tar.zst
+wget -q https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-gcc-libs-12.2.0-9-any.pkg.tar.zst
+#wget -q https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-headers-git-10.0.0.r0.gaa08f56da-1-any.pkg.tar.zst
+#wget -q https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-crt-git-10.0.0.r0.gaa08f56da-1-any.pkg.tar.zst
+#wget -q https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-binutils-2.39-3-any.pkg.tar.zst
+pacman -U --noconfirm *.pkg.tar.zst
+
 # Enable linting
 export MAKEPKG_LINT_PKGBUILD=1
 
