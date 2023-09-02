@@ -4,7 +4,7 @@
 _realname=v8
 pkgbase=mingw-w64-${_realname}
 pkgname="${MINGW_PACKAGE_PREFIX}-${_realname}"
-pkgver=11.8.7
+pkgver=11.7.439.14
 pkgrel=1
 pkgdesc="Fast and modern Javascript engine (mingw-w64)"
 arch=('any')
@@ -48,7 +48,7 @@ source=("https://github.com/v8/v8/archive/refs/tags/${pkgver}.tar.gz"
         "v8_libbase.pc"
         "v8_libplatform.pc"
         "v8.pc")
-sha256sums=('7c96843bd65ae290bf7424be546b244b67d2f4fb5ae1b5922942a36dae855f62'
+sha256sums=('SKIP'
             'SKIP'
             'SKIP'
             'SKIP'
