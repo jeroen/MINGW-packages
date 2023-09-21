@@ -5,7 +5,7 @@ pkgbase=mingw-w64-${_realname}
 pkgname=("${MINGW_PACKAGE_PREFIX}-${_realname}"
          "${MINGW_PACKAGE_PREFIX}-${_realname}-docs")
 pkgver=2.57.0
-pkgrel=1
+pkgrel=999
 pkgdesc="SVG rendering library (mingw-w64)"
 arch=('any')
 mingw_arch=('mingw32' 'mingw64' 'ucrt64' 'clang64' 'clang32' 'clangarm64')
@@ -35,7 +35,11 @@ prepare() {
 
   patch -p1 -i "${srcdir}/0001-configure-set-pass-prefix-to-pkg-config-when-retriev.patch"
 
-  cargo fetch --locked
+  echo "" >> Cargo.toml
+  echo "[patch.crates-io]" >> Cargo.toml
+  echo "glib = { git = 'https://github.com/jeroen/glib-rs.git' }" >> Cargo.toml
+
+  cargo fetch
 
   autoreconf -fiv
 }
@@ -61,6 +65,8 @@ build() {
     --prefix=${MINGW_PREFIX} \
     --build=${MINGW_CHOST} \
     --host=${MINGW_CHOST} \
+    --enable-static \
+    --disable-shared \
     --enable-introspection \
     --enable-vala \
     --enable-silent-rules

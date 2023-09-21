@@ -1,9 +1,5 @@
 name: main
 
-concurrency:
-  group: ${{ github.ref }}
-  cancel-in-progress: true
-
 on:
   push:
   pull_request:
@@ -16,10 +12,8 @@ jobs:
       matrix:
         include: [
           { msystem: MINGW64, runner: windows-2022 },
-          { msystem: MINGW32, runner: windows-2022 },
           { msystem: UCRT64, runner: windows-2022 },
           { msystem: CLANG64, runner: windows-2022 },
-          { msystem: CLANG32, runner: windows-2022 },
           # { msystem: CLANGARM64, runner: ['Windows', 'ARM64', 'CI'] }
         ]
     name: ${{ matrix.msystem }}
