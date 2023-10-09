@@ -151,22 +151,14 @@ build() {
   cd ${_realname}-${pkgver}
 
   local _buildtype=Release
-  local _debug=false
-  if check_option "debug" "y"; then
-    _buildtype=Debug
-    _debug=true
-  fi
-
   local _arch=x64
-  local _cfg=true
+  local _clang=false
   if [[ ${CARCH} == i686 ]]; then
     _arch=x86
-  elif [[ ${CARCH} == aarch64 ]]; then
-    _arch=arm64
-    _cfg=false
   fi
-
-  local _clang=false
+  if [[ ${CARCH} == aarch64 ]]; then
+    _arch=arm64
+  fi
   if [[ ${MSYSTEM} == CLANG* ]]; then
     _clang=true
   fi
@@ -174,38 +166,31 @@ build() {
   # generate build files
   ${MINGW_PREFIX}/bin/gn gen out/${_buildtype}-${MSYSTEM} --args="
     target_cpu=\"${_arch}\"
-    is_debug=${_debug}
+    is_debug=false
     is_clang=${_clang}
-    is_component_build=true
+    v8_monolithic=true
+    v8_static_library=true
+    is_component_build=false
     use_custom_libcxx=false
     use_lld=false
     use_sysroot=false
     v8_enable_verify_heap=false
-    icu_use_data_file=false
-    win_enable_cfg_guards=${_cfg}
-    enable_iterator_debugging=${_debug}
+    v8_enable_i18n_support=false
+    v8_enable_sandbox=false
+    v8_use_external_startup_data=false
+    win_enable_cfg_guards=false
+    enable_iterator_debugging=false
     treat_warnings_as_errors=false"
 
-  ${MINGW_PREFIX}/bin/ninja -C out/${_buildtype}-${MSYSTEM} v8_libbase v8_libplatform v8 d8 torque torque-language-server mksnapshot
+  ${MINGW_PREFIX}/bin/ninja -C out/${_buildtype}-${MSYSTEM} v8_monolith v8_libbase v8_libplatform v8 d8
 }
 
 package() {
   cd ${_realname}-${pkgver}
-
   local _buildtype=Release
-  if check_option "debug" "y"; then
-    _buildtype=Debug
-  fi
-
   install -d ${pkgdir}${MINGW_PREFIX}/{bin,include/{cppgc/internal,libplatform},lib/pkgconfig,share/licenses/${_realname}}
   install -Dm755 out/${_buildtype}-${MSYSTEM}/d8.exe                      ${pkgdir}${MINGW_PREFIX}/bin/d8.exe
-  install -Dm755 out/${_buildtype}-${MSYSTEM}/torque.exe                  ${pkgdir}${MINGW_PREFIX}/bin/torque.exe
-  install -Dm755 out/${_buildtype}-${MSYSTEM}/torque-language-server.exe  ${pkgdir}${MINGW_PREFIX}/bin/torque-language-server.exe
-  install -Dm755 out/${_buildtype}-${MSYSTEM}/mksnapshot.exe              ${pkgdir}${MINGW_PREFIX}/bin/mksnapshot.exe
-  install -Dm755 out/${_buildtype}-${MSYSTEM}/*.dll                       ${pkgdir}${MINGW_PREFIX}/bin/
-  install -Dm644 out/${_buildtype}-${MSYSTEM}/snapshot_blob.bin           ${pkgdir}${MINGW_PREFIX}/bin/snapshot_blob.bin
-  install -Dm755 out/${_buildtype}-${MSYSTEM}/*.a                         ${pkgdir}${MINGW_PREFIX}/lib/
-  install -Dm644 $srcdir/*.pc                                             ${pkgdir}${MINGW_PREFIX}/lib/pkgconfig/
+  install -Dm755 out/${_buildtype}-${MSYSTEM}/obj/libv8_monolith.a        ${pkgdir}${MINGW_PREFIX}/lib/
   install -Dm644 include/*.h                                              ${pkgdir}${MINGW_PREFIX}/include/
   install -Dm644 include/cppgc/*.h                                        ${pkgdir}${MINGW_PREFIX}/include/cppgc/
   install -Dm644 include/cppgc/internal/*.h                               ${pkgdir}${MINGW_PREFIX}/include/cppgc/internal/
