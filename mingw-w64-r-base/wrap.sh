@@ -1,2 +1,3 @@
 #!/bin/sh
-../libexec/R/bin/$(basename "$0").exe "$@"
+"${0/bin/libexec/R/bin}" "$@"
+
