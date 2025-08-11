@@ -5,24 +5,19 @@ _realname=v8
 pkgbase=mingw-w64-${_realname}
 pkgname="${MINGW_PACKAGE_PREFIX}-${_realname}"
 pkgver=14.0.210
-pkgrel=1
+pkgrel=2
 pkgdesc="Fast and modern Javascript engine (mingw-w64)"
 arch=('any')
 mingw_arch=('mingw64' 'ucrt64' 'clang64' 'clangarm64')
 url="https://v8.dev"
-msys2_references=(
-  "cpe: cpe:/a:google:v8"
-)
-msys2_repository_url='https://github.com/v8/v8'
 license=('spdx:BSD-3-Clause')
-depends=("${MINGW_PACKAGE_PREFIX}-icu"
-         "${MINGW_PACKAGE_PREFIX}-zlib")
 makedepends=("${MINGW_PACKAGE_PREFIX}-cc"
              "${MINGW_PACKAGE_PREFIX}-gn"
              "${MINGW_PACKAGE_PREFIX}-ninja"
              "${MINGW_PACKAGE_PREFIX}-pkgconf"
              "${MINGW_PACKAGE_PREFIX}-python"
              "git")
+depends=("${MINGW_PACKAGE_PREFIX}-zlib")
 source=("https://github.com/v8/v8/archive/refs/tags/${pkgver}.tar.gz"
         "bare-clones/build::git+https://chromium.googlesource.com/chromium/src/build.git#commit=cb592905b1f94a0c315dccb59939f91ef869592c"
         "bare-clones/clang::git+https://chromium.googlesource.com/chromium/src/tools/clang.git#commit=d6072980974f9a4922d2eb27e4fd244ca3017031"
@@ -56,7 +51,9 @@ source=("https://github.com/v8/v8/archive/refs/tags/${pkgver}.tar.gz"
         "zlib.gn"
         "v8_libbase.pc"
         "v8_libplatform.pc"
-        "v8.pc")
+        "v8.pc"
+        "disable-cet.diff"
+        "https://github.com/v8/v8/commit/c26b79d5.patch")
 sha256sums=('a8d553be4130bc5e95e4bb7635958e8f79ecd34aef32de23d3bd7db0b3203760'
             '5eb934ca43dfaccad43358820d8a84f1b8229d6330d2e0db1e827081b6858b99'
             'f58b2605f036b8c9c7992635ad5f2070abe4d527314915874766d654ae4eb429'
@@ -90,7 +87,9 @@ sha256sums=('a8d553be4130bc5e95e4bb7635958e8f79ecd34aef32de23d3bd7db0b3203760'
             '7e1e39a3dc69632f7bf9182c92405186ce709aca921cf0abefadb6fa8b825510'
             '71ac09cff81a983c63cbeee405a18b092655e6c608da1ede3aacc568edb80b39'
             'aaeb6759ccbe875babdc48ab394e1a0cc8485731c9311827b3981ba6e85ee688'
-            '75a1f195164d830524b02801c82f39628cd51fa15ba59472e37dde4ce97aecd5')
+            '75a1f195164d830524b02801c82f39628cd51fa15ba59472e37dde4ce97aecd5'
+            'SKIP'
+            'SKIP')
 
 apply_patch_with_msg() {
   for _patch in "$@"
@@ -153,7 +152,9 @@ prepare() {
     011-make-sure-that-__rdtsc-is-declared.patch \
     012-remove-dllimport-attributes.patch \
     013-builtin-deps-fixes.patch \
-    014-heap-use-proper-sources.patch
+    014-heap-use-proper-sources.patch \
+    c26b79d5.patch \
+    disable-cet.diff
 
   sed -e "s|@VERSION@|${pkgver}|g" \
       -e "s|@CFLAGS@|${_cflags}|g" \
@@ -166,38 +167,44 @@ prepare() {
   sed -e "s|@VERSION@|${pkgver}|g" \
       -e "s|@CFLAGS@|${_cflags}|g" \
       -e "s|@PREFIX@|${MINGW_PREFIX}|g" -i "${srcdir}/v8.pc"
+
+  #jeroen: fix constants and flags for older mingw versions
+  sed -e "s|MEM_REPLACE_PLACEHOLDER|0x00004000|g" \
+      -e "s|MEM_RESERVE_PLACEHOLDER|0x00040000|g" \
+      -e "s|MEM_PRESERVE_PLACEHOLDER|0x00000002|g" \
+      -e "s|CREATE_WAITABLE_TIMER_HIGH_RESOLUTION|0x00000002|g" \
+      -e "s|MEM_COALESCE_PLACEHOLDERS|0x00000001|g" \
+      -i src/base/platform/platform-win32.cc
+
+  sed -e "s|#include <windows.globalization.h>||g" \
+      -i third_party/abseil-cpp/absl/time/internal/cctz/src/time_zone_lookup.cc
+
+  # Avoid libssp dependency
+  sed -i '/fortify/Id' ${srcdir}/${_realname}-${pkgver}/build/config/compiler/BUILD.gn
 }
 
 build() {
   cd ${_realname}-${pkgver}
 
   local _buildtype=Release
-  local _debug=false
-  local _symbol=0
-  if check_option "debug" "y"; then
-    _buildtype=Debug
-    _debug=true
-    _symbol=2
-  fi
-
   local _arch=x64
-  local _cfg=true
+  local _clang=false
   if [[ ${CARCH} == aarch64 ]]; then
     _arch=arm64
-    _cfg=false
   fi
-
-  local _clang=false
   if [[ ${MSYSTEM} == CLANG* ]]; then
     _clang=true
   fi
 
-  local _gn_args="
+  # generate build files
+  ${MINGW_PREFIX}/bin/gn gen out/${_buildtype}-${MSYSTEM} --args="
     target_cpu=\"${_arch}\"
-    is_debug=${_debug}
+    is_debug=false
     is_clang=${_clang}
+    v8_monolithic=true
+    v8_static_library=true
+    is_component_build=false
     use_custom_libcxx=false
-    use_libcxx_modules=false
     use_lld=false
     use_siso=false
     use_sysroot=false
@@ -206,50 +213,30 @@ build() {
     v8_enable_system_instrumentation=false
     v8_enable_temporal_support=false
     v8_enable_verify_heap=false
-    v8_symbol_level=${_symbol}
+    v8_enable_i18n_support=false
+    v8_enable_sandbox=false
+    v8_symbol_level=0
     v8_use_external_startup_data=false
     chrome_pgo_phase=0
     clang_use_chrome_plugins=false
-    enable_iterator_debugging=${_debug}
+    enable_iterator_debugging=false
     enable_rust=false
-    win_enable_cfg_guards=${_cfg}
+    win_enable_cfg_guards=false
+    enable_iterator_debugging=false
     treat_warnings_as_errors=false"
 
-  # generate build files for shared library
-  gn gen out/${_buildtype}-${MSYSTEM} --args="${_gn_args} is_component_build=true"
-
-  ninja -C out/${_buildtype}-${MSYSTEM} v8 d8 torque torque-language-server mksnapshot
-
-  # generate build files for static library
-  gn gen out/${_buildtype}-${MSYSTEM}-static --args="${_gn_args} is_component_build=false v8_enable_i18n_support=false v8_monolithic=true"
-
-  ninja -C out/${_buildtype}-${MSYSTEM}-static v8_monolith
+  ${MINGW_PREFIX}/bin/ninja -C out/${_buildtype}-${MSYSTEM} v8_monolith v8_libbase v8_libplatform v8 d8
 }
 
 package() {
   cd ${_realname}-${pkgver}
-
   local _buildtype=Release
-  if check_option "debug" "y"; then
-    _buildtype=Debug
-  fi
-
-  install -d "${pkgdir}"${MINGW_PREFIX}/{bin,include/{cppgc/internal,libplatform},lib/pkgconfig,share/licenses/${_realname}}
-
-  install -Dm755 out/${_buildtype}-${MSYSTEM}/d8.exe                      "${pkgdir}"${MINGW_PREFIX}/bin/d8.exe
-  install -Dm755 out/${_buildtype}-${MSYSTEM}/torque.exe                  "${pkgdir}"${MINGW_PREFIX}/bin/torque.exe
-  install -Dm755 out/${_buildtype}-${MSYSTEM}/torque-language-server.exe  "${pkgdir}"${MINGW_PREFIX}/bin/torque-language-server.exe
-  install -Dm755 out/${_buildtype}-${MSYSTEM}/mksnapshot.exe              "${pkgdir}"${MINGW_PREFIX}/bin/mksnapshot.exe
-  install -Dm755 out/${_buildtype}-${MSYSTEM}/*.dll                       "${pkgdir}"${MINGW_PREFIX}/bin/
-
-  install -Dm755 out/${_buildtype}-${MSYSTEM}/*.a                         "${pkgdir}"${MINGW_PREFIX}/lib/
-  install -Dm755 out/${_buildtype}-${MSYSTEM}-static/obj/libv8_monolith.a "${pkgdir}"${MINGW_PREFIX}/lib/
-  install -Dm644 "${srcdir}"/*.pc                                         "${pkgdir}"${MINGW_PREFIX}/lib/pkgconfig/
-
-  install -Dm644 include/*.h                                              "${pkgdir}"${MINGW_PREFIX}/include/
-  install -Dm644 include/cppgc/*.h                                        "${pkgdir}"${MINGW_PREFIX}/include/cppgc/
-  install -Dm644 include/cppgc/internal/*.h                               "${pkgdir}"${MINGW_PREFIX}/include/cppgc/internal/
-  install -Dm644 include/libplatform/*.h                                  "${pkgdir}"${MINGW_PREFIX}/include/libplatform/
-
-  install -Dm644 LICENSE*                                                 "${pkgdir}"${MINGW_PREFIX}/share/licenses/${_realname}/
+  install -d ${pkgdir}${MINGW_PREFIX}/{bin,include/{cppgc/internal,libplatform},lib/pkgconfig,share/licenses/${_realname}}
+  install -Dm755 out/${_buildtype}-${MSYSTEM}/d8.exe                      ${pkgdir}${MINGW_PREFIX}/bin/d8.exe
+  install -Dm755 out/${_buildtype}-${MSYSTEM}/obj/libv8_monolith.a        ${pkgdir}${MINGW_PREFIX}/lib/
+  install -Dm644 include/*.h                                              ${pkgdir}${MINGW_PREFIX}/include/
+  install -Dm644 include/cppgc/*.h                                        ${pkgdir}${MINGW_PREFIX}/include/cppgc/
+  install -Dm644 include/cppgc/internal/*.h                               ${pkgdir}${MINGW_PREFIX}/include/cppgc/internal/
+  install -Dm644 include/libplatform/*.h                                  ${pkgdir}${MINGW_PREFIX}/include/libplatform/
+  install -Dm644 LICENSE*                                                 ${pkgdir}${MINGW_PREFIX}/share/licenses/${_realname}/
 }
