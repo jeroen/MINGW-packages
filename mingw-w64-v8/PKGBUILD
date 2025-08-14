@@ -204,8 +204,9 @@ build() {
     v8_monolithic=true
     v8_static_library=true
     is_component_build=false
+    is_official_build=false
     use_custom_libcxx=false
-    use_lld=true
+    use_lld=false
     use_siso=false
     use_sysroot=false
     v8_enable_etw_stack_walking=false
