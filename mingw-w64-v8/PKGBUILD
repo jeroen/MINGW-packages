@@ -4,7 +4,7 @@
 _realname=v8
 pkgbase=mingw-w64-${_realname}
 pkgname="${MINGW_PACKAGE_PREFIX}-${_realname}"
-pkgver=14.6.202.26
+pkgver=14.6.202.33
 pkgrel=1
 pkgdesc="Fast and modern Javascript engine (mingw-w64)"
 arch=('any')
@@ -53,12 +53,13 @@ source=("https://github.com/v8/v8/archive/refs/tags/${pkgver}.tar.gz"
         "015-abseil-build-as-static-lib.patch"
         "016-zlib-use-system-lib.patch"
         "017-highway-disable-avx10-on-mingw.patch"
+        "018-use-mingw-printf.patch"
         "icu.gn"
         "zlib.gn"
         "v8_libbase.pc"
         "v8_libplatform.pc"
         "v8.pc")
-sha256sums=('9967736b8381fdf34de72c3f84eebbdb30a867cb94d9a8ff6993504549cc65b5'
+sha256sums=('c467f6745a9066905c5c2d9f1e22e426e1f1cc89365219ee14a17fb78839536f'
             'c5a52fc32379c3fd94af0113b903faaed0245db30141e0aa8a22924d09aaff31'
             'e8bd181d04e07c0447022a5de8b7c6b78343c40345b723cbd02ba7d5b9e73517'
             '76a30f4d62532445157271a839b3bb1b85e921587bcb9afe01c44310035c48a1'
@@ -71,7 +72,7 @@ sha256sums=('9967736b8381fdf34de72c3f84eebbdb30a867cb94d9a8ff6993504549cc65b5'
             '81daaa3fe38b4b5569a18bff4daf06dea57e46fb1fd3b4930f9f9c423243c7b5'
             '9c40290088cf1e8845fc7f86ed7c25930e74d0454affb892dbc7b236d276331c'
             'be0417df9753bf1dea6b5bb0ee81ffc1352d94a03dffcc3a9b0012d663ae11c2'
-            '04ccd7b9ff3064bd74d4e521facadf71cdc09c8304fe58cdcf52901a345500da'
+            'f718e60f47248e7138158b61818631dc1eca582be8122f91e33cf20069e27d1e'
             'ebd7b8e2b91e02879cb6c83154cb276be2a820f939b6d166e98b39c175b0eb51'
             '274d4cfc5a8a4f99699e67fed36565f315dd3bc0d1335bbf5070ba7052d99541'
             'aa7255002773aa3944027e0aab19627eee089c2ec3893713c8c7ff082e214553'
@@ -82,12 +83,13 @@ sha256sums=('9967736b8381fdf34de72c3f84eebbdb30a867cb94d9a8ff6993504549cc65b5'
             '4edcd5f7d2f9b52c8783e81b7f06f6e5b386aa6c0143cc2f9054754db53919cf'
             'e4d8e57914cfcf6c0ea299d0556d7b747271e5a7ec66e1d8d52394fcd0da34b6'
             '1ef6854b6a68101ab177a7a95389e9b03e7b8c4e3223320dfc9ce4405cbf5bfe'
-            '5e298af1ea8455174ca95fbd74913bb8bf0da98a1c26149ad7a9c1be8bd9a225'
+            'a0c120dd7d6d4a5dd3db97f658d466ff1ad91cb656900c91981cf3ffb5a79dcc'
             '37a29668fb02d4fa60062c02f0d24dce4ab9b7fce4d7f5a8e6eca745fa125be2'
             '2415e05518836b1b3f4c0ca9f993145ba5d9d406ce47d6c7c3cb2fa76fba7c72'
             '250ca72be5d93c91d23c07478275fcbc09a3f6012a90c44b8af92f9c3e18938b'
             'a4275f41723cc990f2f43559ce716100830a8ce3f38e4878f6bf36d70d47b646'
             '35b8efe424ae20b1d9e01a696baa1af5b160ebd07adad4beab61562c46dd51d1'
+            'b43ae96f1989b2a69b91dc72026253d0fc044f1b0c2780cb94762193cb69aa7d'
             'e1bc88af48143f29f5805b8ac5d77addef1b09318d1f5f127a9281872c00303b'
             '7e1e39a3dc69632f7bf9182c92405186ce709aca921cf0abefadb6fa8b825510'
             '71ac09cff81a983c63cbeee405a18b092655e6c608da1ede3aacc568edb80b39'
@@ -156,7 +158,8 @@ prepare() {
     012-remove-dllimport-attributes.patch \
     013-builtin-deps-fixes.patch \
     014-heap-use-proper-sources.patch \
-    017-highway-disable-avx10-on-mingw.patch
+    017-highway-disable-avx10-on-mingw.patch \
+    018-use-mingw-printf.patch
 
   sed -e "s|@VERSION@|${pkgver}|g" \
       -e "s|@CFLAGS@|${_cflags}|g" \
@@ -225,7 +228,7 @@ build() {
   ninja -C out/${_buildtype}-${MSYSTEM} v8 d8 torque torque-language-server mksnapshot
 
   # generate build files for static library
-  gn gen out/${_buildtype}-${MSYSTEM}-static --args="${_gn_args} is_component_build=false v8_enable_i18n_support=false v8_monolithic=true"
+  gn gen out/${_buildtype}-${MSYSTEM}-static --args="${_gn_args} is_component_build=false v8_enable_sandbox=false v8_enable_i18n_support=false v8_monolithic=true"
 
   ninja -C out/${_buildtype}-${MSYSTEM}-static v8_monolith
 }
